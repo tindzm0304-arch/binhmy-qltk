@@ -1,0 +1,14 @@
+{
+  "name": "Hệ Thống Quản Trị Bình Mỹ",
+  "short_name": "Bình Mỹ",
+  "description": "Cổng điều phối số xã Bình Mỹ",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fc",
+  "theme_color": "#0b2a6f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
