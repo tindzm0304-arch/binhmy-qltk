@@ -4,7 +4,7 @@
 import { APP_NAME, STORAGE_KEY, PORTAL_OTHER } from './config.js';
 import { esc, uid, debounce, downloadBlob, formatSize, normalizeStr, searchTerms, matchesTerms, fileToIconDataUrl, todayStamp } from './utils.js';
 import { icon } from './icons.js';
-import { loadState, saveState, normalizeState, putFile, getFile, deleteFile } from './db.js';
+import { loadState, saveState, normalizeState, putFile, getFile, deleteFile, buildBackup, readBackup, restoreBackup } from './db.js';
 import { buildModuleInfo, accountKeysOf, unitsOf, userSummary, softwareSummary, filterRows, portalCategoriesOf, isSamePerson, linkedAccountKeys } from './model.js';
 import { columnsFor } from './columns.js';
 import { renderForm, readForm, slugKey } from './forms.js';
@@ -61,6 +61,9 @@ function renderShell() {
         <div class="gsearch-pop" id="gsearch-pop" role="listbox" hidden></div>
       </div>
       <div class="topbar-right">
+        <button class="icon-btn" data-action="backup" aria-label="Sao lưu dữ liệu ra file" title="Sao lưu dữ liệu ra file">${icon('download', 20)}</button>
+        <button class="icon-btn" data-action="restore" aria-label="Khôi phục dữ liệu từ file sao lưu" title="Khôi phục dữ liệu từ file sao lưu">${icon('upload', 20)}</button>
+        <input type="file" id="restore-input" accept=".json,application/json" hidden>
         <div class="clock hide-md" id="clock" aria-hidden="true"></div>
       </div>
     </header>
@@ -820,6 +823,44 @@ function doExport(format) {
 }
 
 // ==========================================
+// SAO LƯU / KHÔI PHỤC (một file JSON, dùng để chuyển dữ liệu sang máy khác)
+// ==========================================
+async function doBackup() {
+  try {
+    const payload = await buildBackup(store.state);
+    const now = new Date();
+    const hhmm = [now.getHours(), now.getMinutes()].map(n => String(n).padStart(2, '0')).join('');
+    downloadBlob(new Blob([JSON.stringify(payload)], { type: 'application/json' }), `binhmy-qltk-${todayStamp()}-${hhmm}.json`);
+    const nFiles = Object.keys(payload.files).length;
+    toast(`Đã sao lưu dữ liệu${nFiles ? ` và ${nFiles} tệp đính kèm` : ''}. Hãy giữ file này để khôi phục trên máy khác.`);
+  } catch (e) {
+    console.error(e);
+    toast('Không tạo được bản sao lưu. Thử lại sau.', 'danger');
+  }
+}
+
+async function restoreFromFile(file) {
+  if (!file) return;
+  let payload;
+  try { payload = readBackup(await file.text()); }
+  catch (e) { return toast(e.message || 'Không đọc được file sao lưu.', 'danger'); }
+  const when = payload.exportedAt ? new Date(payload.exportedAt).toLocaleString('vi-VN') : 'không rõ thời điểm';
+  const ok = await confirmDialog(`Khôi phục sẽ THAY THẾ toàn bộ dữ liệu đang có trên máy này bằng bản sao lưu lúc ${when}. Dữ liệu hiện tại sẽ bị mất nếu chưa sao lưu. Tiếp tục?`, { okText: 'Khôi phục' });
+  if (!ok) return;
+  try {
+    store.state = await restoreBackup(payload);
+    info = buildModuleInfo(store.state.data);
+    Object.assign(ui, { search: '', unit: 'All', status: 'all', cluster: 'All', page: 1 });
+    while (modalStack.length) closeModal();
+    onRoute();
+    toast('Đã khôi phục dữ liệu từ file sao lưu.');
+  } catch (e) {
+    console.error(e);
+    toast(e.message || 'Không khôi phục được dữ liệu.', 'danger');
+  }
+}
+
+// ==========================================
 // TÀI LIỆU ĐÍNH KÈM
 // ==========================================
 const docList = (key, type) => {
@@ -949,6 +990,8 @@ function bindEvents() {
         return renderTable();
       }
       case 'export': return doExport(el.dataset.format);
+      case 'backup': return doBackup();
+      case 'restore': return $('#restore-input').click();
       case 'people-template': return downloadPeopleTemplate();
       case 'unit-template': return downloadUnitTemplate();
       case 'confirm-import': return applyPendingImport();
@@ -1010,6 +1053,7 @@ function bindEvents() {
 
   document.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.id === 'restore-input') { restoreFromFile(t.files[0]); t.value = ''; }
     if (t.id === 'unit-filter') { ui.unit = t.value; ui.page = 1; renderTable(); }
     if (t.id === 'cluster-filter') { ui.cluster = t.value; renderView(); }
     if (t.id === 'per-page') { ui.perPage = Number(t.value); ui.page = 1; renderTable(); }

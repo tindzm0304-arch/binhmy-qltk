@@ -74,5 +74,6 @@ rồi mở `http://localhost:5173`.
 
 ## Lưu ý quan trọng
 
-- **Dữ liệu nằm trong trình duyệt** của từng thiết bị (không còn dùng chung qua Google Sheet). Dữ liệu trên máy này không tự chuyển sang máy khác, và không có chức năng sao lưu trong website.
+- **Dữ liệu nằm trong trình duyệt** của từng thiết bị (không còn dùng chung qua Google Sheet). Dữ liệu trên máy này không tự chuyển sang máy khác.
+- **Chuyển sang máy khác**: trên máy cũ bấm nút **Sao lưu** (biểu tượng tải xuống, góc trên bên phải) để tải về một file `.json` (gồm cả tài liệu đính kèm). Trên máy mới mở website, bấm nút **Khôi phục** (biểu tượng tải lên) và chọn file đó. Khôi phục sẽ thay thế toàn bộ dữ liệu đang có trên máy đó. Nên sao lưu định kỳ.
 - **Không có đăng nhập**: ai mở trang cũng thêm, sửa, xóa được (trên dữ liệu trong trình duyệt của chính họ). Không lưu mật khẩu thật của các hệ thống khác nếu đưa trang lên mạng công khai.
