@@ -128,3 +128,62 @@ export async function deleteFile(id) {
   memoryFiles.delete(key);
   try { await fileTx('readwrite', s => s.delete(key)); } catch { /* bỏ qua */ }
 }
+
+// ---------- Sao lưu / khôi phục (một tệp JSON) ----------
+const BACKUP_APP = 'binhmy-qltk';
+const BACKUP_FORMAT = 1;
+
+const blobToDataURL = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+const dataURLToBlob = (url) => {
+  const comma = url.indexOf(',');
+  const mime = url.slice(5, url.indexOf(';')) || 'application/octet-stream';
+  const bin = atob(url.slice(comma + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+};
+
+// Gom toàn bộ dữ liệu bảng + tệp đính kèm thành một đối tượng để ghi ra JSON
+export async function buildBackup(state) {
+  const ids = new Set();
+  Object.values(state.docs || {}).forEach(byType => Object.values(byType || {}).forEach(list =>
+    (Array.isArray(list) ? list : []).forEach(d => { if (d?.id) ids.add(String(d.id)); })));
+  const files = {};
+  for (const id of ids) {
+    const blob = await getFile(id);
+    if (blob) files[id] = await blobToDataURL(blob);
+  }
+  return {
+    app: BACKUP_APP,
+    format: BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    state: { data: state.data, links: state.links, notes: state.notes, docs: state.docs, updatedAt: state.updatedAt },
+    files
+  };
+}
+
+// Đọc và kiểm tra tệp sao lưu; ném lỗi nếu không đúng định dạng
+export function readBackup(text) {
+  let payload;
+  try { payload = JSON.parse(text); } catch { throw new Error('File không phải JSON hợp lệ.'); }
+  if (payload?.app !== BACKUP_APP || !payload.state?.data || typeof payload.state.data !== 'object') {
+    throw new Error('File này không phải bản sao lưu của Bình Mỹ.');
+  }
+  return payload;
+}
+
+// Ghi đè dữ liệu trên máy bằng bản sao lưu; trả về trạng thái mới
+export async function restoreBackup(payload) {
+  const state = normalizeState(payload.state);
+  for (const [id, url] of Object.entries(payload.files || {})) {
+    await putFile(id, dataURLToBlob(url));
+  }
+  if (!saveState(state)) throw new Error('Không đủ bộ nhớ trình duyệt để khôi phục dữ liệu.');
+  return state;
+}
